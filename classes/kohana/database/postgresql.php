@@ -81,11 +81,11 @@ class Kohana_Database_PostgreSQL extends Database
 		}
 		catch (ErrorException $e)
 		{
-			throw new Database_Exception(':error', array(':error' => $e->getMessage()));
+			throw new Database_Exception(PGSQL_CONNECTION_BAD, ':error', array(':error' => $e->getMessage()));
 		}
 
 		if ( ! is_resource($this->_connection))
-			throw new Database_Exception('Unable to connect to PostgreSQL ":name"', array(':name' => $this->_instance));
+			throw new Database_Exception(PGSQL_CONNECTION_BAD, 'Unable to connect to PostgreSQL ":name"', array(':name' => $this->_instance));
 
 		$this->_version = pg_parameter_status($this->_connection, 'server_version');
 
@@ -102,13 +102,13 @@ class Kohana_Database_PostgreSQL extends Database
 		else
 		{
 			if ( ! pg_send_query($this->_connection, 'SET search_path = '.$this->_config['schema'].', pg_catalog'))
-				throw new Database_Exception(pg_last_error($this->_connection));
+				throw new Database_Exception(0, pg_last_error($this->_connection));
 
 			if ( ! $result = pg_get_result($this->_connection))
-				throw new Database_Exception(pg_last_error($this->_connection));
+				throw new Database_Exception(0, pg_last_error($this->_connection));
 
-			if (pg_result_status($result) !== PGSQL_COMMAND_OK)
-				throw new Database_Exception(pg_result_error($result));
+			if (($status = pg_result_status($result)) !== PGSQL_COMMAND_OK)
+				throw new Database_Exception($status, pg_result_error($result));
 		}
 	}
 
@@ -130,7 +130,7 @@ class Kohana_Database_PostgreSQL extends Database
 		$this->_connection or $this->connect();
 
 		if (pg_set_client_encoding($this->_connection, $charset) !== 0)
-			throw new Database_Exception(pg_last_error($this->_connection));
+			throw new Database_Exception(0, pg_last_error($this->_connection));
 	}
 
 	/**
@@ -144,10 +144,10 @@ class Kohana_Database_PostgreSQL extends Database
 		$this->_connection or $this->connect();
 
 		if ( ! pg_send_query($this->_connection, $sql))
-			throw new Database_Exception(pg_last_error($this->_connection));
+			throw new Database_Exception(0, pg_last_error($this->_connection));
 
 		if ( ! $result = pg_get_result($this->_connection))
-			throw new Database_Exception(pg_last_error($this->_connection));
+			throw new Database_Exception(0, pg_last_error($this->_connection));
 
 		return (pg_result_status($result) === PGSQL_COMMAND_OK);
 	}
@@ -170,15 +170,15 @@ class Kohana_Database_PostgreSQL extends Database
 			}
 
 			if ( ! pg_send_query($this->_connection, $sql))
-				throw new Database_Exception(':error [ :query ]',
+				throw new Database_Exception(0, ':error [ :query ]',
 					array(':error' => pg_last_error($this->_connection), ':query' => $sql));
 
 			if ( ! $result = pg_get_result($this->_connection))
-				throw new Database_Exception(':error [ :query ]',
+				throw new Database_Exception(0, ':error [ :query ]',
 					array(':error' => pg_last_error($this->_connection), ':query' => $sql));
 
 			// Check the result for errors
-			switch (pg_result_status($result))
+			switch ($status = pg_result_status($result))
 			{
 				case PGSQL_EMPTY_QUERY:
 					$rows = 0;
@@ -192,13 +192,13 @@ class Kohana_Database_PostgreSQL extends Database
 				case PGSQL_BAD_RESPONSE:
 				case PGSQL_NONFATAL_ERROR:
 				case PGSQL_FATAL_ERROR:
-					throw new Database_Exception(':error [ :query ]',
+					throw new Database_Exception($status, ':error [ :query ]',
 						array(':error' => pg_result_error($result), ':query' => $sql));
 				case PGSQL_COPY_OUT:
 				case PGSQL_COPY_IN:
 					pg_end_copy($this->_connection);
 
-					throw new Database_Exception('PostgreSQL COPY operations not supported [ :query ]',
+					throw new Database_Exception($status, 'PostgreSQL COPY operations not supported [ :query ]',
 						array(':query' => $sql));
 				default:
 					$rows = 0;
